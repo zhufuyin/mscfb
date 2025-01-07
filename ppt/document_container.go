@@ -40,9 +40,14 @@ func (c *DocumentContainer) parse(ctx context.Context) error {
 				}
 				c.slideList = slideList
 			case 0x001: // MasterListWithTextContainer
-				c.masterList = &MasterListWithTextContainer{
+				masterList := &MasterListWithTextContainer{
 					Record: record,
 				}
+				err = masterList.parse(ctx)
+				if err != nil {
+					return err
+				}
+				c.masterList = masterList
 			case 0x002: // NotesListWithTextContainer
 				notesList := &NotesListWithTextContainer{
 					Record: record,
@@ -74,6 +79,6 @@ func (c *DocumentContainer) extractText() ([]string, error) {
 	if len(txts) > 0 {
 		texts = append(texts, txts...)
 	}
-	// todo notes
+
 	return texts, nil
 }

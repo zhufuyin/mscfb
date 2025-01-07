@@ -120,7 +120,48 @@ func (s *PowerPointStream) extractText() ([]string, error) {
 		if len(notesTexts) > 0 {
 			texts = append(texts, notesTexts...)
 		}
-
+	}
+	// master list
+	masterList := s.documentContainer.masterList
+	for _, masterPersistAtom := range masterList.rgMasterPersistAtom {
+		persistIdRef := masterPersistAtom.persistIdRef
+		offset, ok := s.persistIdObjOffsets[persistIdRef]
+		if !ok {
+			fmt.Printf("persistIdRef:%d not found\n", persistIdRef)
+			return nil, fmt.Errorf("persistIdRef not found in persistIdObjOffsets")
+		}
+		masterRecord, err := readRecord(s.pptDocument, offset, recordTypeUnspecified)
+		if err != nil {
+			return nil, err
+		}
+		switch masterRecord.RecType {
+		case recordTypeSlide:
+			slideRecord := &SlideContainer{
+				Record: masterRecord,
+			}
+			err = slideRecord.parse()
+			if err != nil {
+				return nil, err
+			}
+			slideTexts := slideRecord.extractText()
+			if len(slideTexts) > 0 {
+				texts = append(texts, slideTexts...)
+			}
+		case recordTypeMainMaster:
+			mainMasterRecord := &MainMasterContainer{
+				Record: masterRecord,
+			}
+			err = mainMasterRecord.parse()
+			if err != nil {
+				return nil, err
+			}
+			mainMasterTexts := mainMasterRecord.extractText()
+			if len(mainMasterTexts) > 0 {
+				texts = append(texts, mainMasterTexts...)
+			}
+		default:
+			fmt.Printf("Unknown master record type %d\n", masterRecord.RecType)
+		}
 	}
 	return texts, nil
 }

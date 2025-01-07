@@ -19,6 +19,7 @@ const (
 	recordTypeNotes                    RecordType = 0x03F0
 	recordTypeEnvironment              RecordType = 0x03F2
 	recordTypeSlidePersistAtom         RecordType = 0x03F3
+	recordTypeMainMaster               RecordType = 0x03F8
 	recordTypeSlideShowSlideInfoAtom   RecordType = 0x03F9
 	recordTypeExternalObjectList       RecordType = 0x0409
 	recordTypeDrawingGroup             RecordType = 0x040B

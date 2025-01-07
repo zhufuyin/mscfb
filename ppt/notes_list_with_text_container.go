@@ -10,7 +10,7 @@ type NotesListWithTextContainer struct {
 func (c *NotesListWithTextContainer) parse(ctx context.Context) error {
 	offset := int64(0)
 	for offset < c.DataLength {
-		record, err := readRecord(c, offset, recordTypeUnspecified)
+		record, err := readRecord(c, offset, recordTypeSlidePersistAtom)
 		if err != nil {
 			return err
 		}

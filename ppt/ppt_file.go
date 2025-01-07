@@ -100,7 +100,7 @@ func (ppt *PptFile) extractText(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var texts []string
+	var rawTexts []string
 	for _, userEditAtom := range ppt.userEditAtoms {
 		err = pptStream.readDocumentContainer(ctx, userEditAtom)
 		if err != nil {
@@ -111,9 +111,15 @@ func (ppt *PptFile) extractText(ctx context.Context) (string, error) {
 			return "", err
 		}
 		if len(userEditTexts) > 0 {
-			texts = append(texts, userEditTexts...)
+			rawTexts = append(rawTexts, userEditTexts...)
+		}
+	}
+	var targetTexts []string
+	for _, rawText := range rawTexts {
+		if len(rawText) > 0 && rawText != "*" {
+			targetTexts = append(targetTexts, rawText)
 		}
 	}
 
-	return strings.Join(texts, "\n"), nil
+	return strings.Join(targetTexts, "\n"), nil
 }
