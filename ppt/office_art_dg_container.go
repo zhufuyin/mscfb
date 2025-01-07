@@ -2,10 +2,10 @@ package ppt
 
 type OfficeArtDGContainer struct {
 	Record
-	spContainerRecords []OfficeArtSpContainer
+	spContainerRecords []*OfficeArtSpContainer
 }
 
-func (c *OfficeArtDGContainer) readOfficeArtSpContainers() error {
+func (c *OfficeArtDGContainer) parse() error {
 	offset := int64(0)
 	for offset < c.DataLength {
 		record, err := readRecordHeaderOnly(c, offset, recordTypeUnspecified)
@@ -19,7 +19,14 @@ func (c *OfficeArtDGContainer) readOfficeArtSpContainers() error {
 			if err != nil {
 				return err
 			}
-			c.spContainerRecords = append(c.spContainerRecords, OfficeArtSpContainer{record})
+			spContainer := &OfficeArtSpContainer{
+				Record: record,
+			}
+			err = spContainer.parse()
+			if err != nil {
+				return err
+			}
+			c.spContainerRecords = append(c.spContainerRecords, spContainer)
 		case recordTypeOfficeArtSpgrContainer:
 			record.RecordData = make([]byte, record.Length())
 			_, err := c.ReadAt(record.RecordData, offset+headerSize)
@@ -29,12 +36,32 @@ func (c *OfficeArtDGContainer) readOfficeArtSpContainers() error {
 			group := &OfficeArtSpgrContainer{
 				Record: record,
 			}
-			group.readOfficeArtSpContainer()
+			err = group.parse()
+			if err != nil {
+				return err
+			}
 			if len(group.spContainerRecords) > 0 {
 				c.spContainerRecords = append(c.spContainerRecords, group.spContainerRecords...)
 			}
 		}
 		offset += int64(headerSize + record.Length())
 	}
+	for _, spContainer := range c.spContainerRecords {
+		err := spContainer.parse()
+		if err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func (c *OfficeArtDGContainer) extractText() []string {
+	if len(c.spContainerRecords) == 0 {
+		return nil
+	}
+	var texts []string
+	for _, spContainer := range c.spContainerRecords {
+		texts = append(texts, spContainer.extractText()...)
+	}
+	return texts
 }

@@ -2,12 +2,13 @@ package ppt
 
 import "fmt"
 
+// OfficeArtClientTextbox [MS-PPT] section 2.9.76
 type OfficeArtClientTextbox struct {
 	Record
 	texts []string
 }
 
-func (o *OfficeArtClientTextbox) readTextAtoms() error {
+func (o *OfficeArtClientTextbox) parse() error {
 	offset := int64(0)
 	var text string
 	for offset < o.DataLength {

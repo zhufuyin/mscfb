@@ -1,13 +1,14 @@
 package ppt
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
 )
 
 const (
-	simplePresPath = "../resources/demo1.ppt"
+	simplePresPath = "../test/demo1.ppt"
 )
 
 func TestExtractTextFromPpt(t *testing.T) {
@@ -18,10 +19,18 @@ func TestExtractTextFromPpt(t *testing.T) {
 	t.Cleanup(func() {
 		f.Close()
 	})
-
-	text, err := ExtractText(f)
+	ppt, err := NewPptFile(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := ppt.extractText(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	fmt.Println(text)
+	//text, err := ExtractText(f)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//fmt.Println(text)
 }

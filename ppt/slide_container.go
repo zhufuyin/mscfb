@@ -1,11 +1,12 @@
 package ppt
 
-type NotesContainer struct {
+// SlideContainer [MS-PPT] 2.5.1
+type SlideContainer struct {
 	Record
 	drawing *DrawingContainer
 }
 
-func (s *NotesContainer) parse() error {
+func (s *SlideContainer) parse() error {
 	offset := int64(0)
 	drawingType := InstanceType{
 		Type:     recordTypeDrawing,
@@ -25,6 +26,6 @@ func (s *NotesContainer) parse() error {
 	return nil
 }
 
-func (s *NotesContainer) extractText() []string {
+func (s *SlideContainer) extractText() []string {
 	return s.drawing.extractText()
 }

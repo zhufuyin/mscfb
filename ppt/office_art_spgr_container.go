@@ -2,10 +2,10 @@ package ppt
 
 type OfficeArtSpgrContainer struct {
 	Record
-	spContainerRecords []OfficeArtSpContainer
+	spContainerRecords []*OfficeArtSpContainer
 }
 
-func (g *OfficeArtSpgrContainer) readOfficeArtSpContainer() error {
+func (g *OfficeArtSpgrContainer) parse() error {
 	offset := int64(0)
 	for offset < g.DataLength {
 		record, err := readRecord(g, offset, recordTypeUnspecified)
@@ -14,12 +14,18 @@ func (g *OfficeArtSpgrContainer) readOfficeArtSpContainer() error {
 		}
 		switch record.RecType {
 		case recordTypeOfficeArtSpContainer:
-			g.spContainerRecords = append(g.spContainerRecords, OfficeArtSpContainer{record})
+			spContainer := &OfficeArtSpContainer{
+				Record: record,
+			}
+			g.spContainerRecords = append(g.spContainerRecords, spContainer)
 		case recordTypeOfficeArtSpgrContainer:
 			subGroup := &OfficeArtSpgrContainer{
 				Record: record,
 			}
-			subGroup.readOfficeArtSpContainer()
+			err = subGroup.parse()
+			if err != nil {
+				return err
+			}
 			if len(subGroup.spContainerRecords) > 0 {
 				g.spContainerRecords = append(g.spContainerRecords, subGroup.spContainerRecords...)
 			}

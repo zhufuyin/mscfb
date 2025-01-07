@@ -26,4 +26,5 @@ func (a *UserEditAtom) parse() {
 	a.offsetLastEdit = a.Uint32At(offset)
 	offset += 4
 	a.offsetPersistDirectory = a.Uint32At(offset)
+
 }

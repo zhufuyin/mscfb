@@ -1,6 +1,9 @@
 package ppt
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 type DocumentContainer struct {
 	Record
@@ -9,7 +12,7 @@ type DocumentContainer struct {
 	notesList  *NotesListWithTextContainer
 }
 
-func (c *DocumentContainer) parse() error {
+func (c *DocumentContainer) parse(ctx context.Context) error {
 	if c.RecType != recordTypeDocument {
 		return fmt.Errorf("invalid document record type %d", c.RecType)
 	}
@@ -28,23 +31,49 @@ func (c *DocumentContainer) parse() error {
 			}
 			switch record.TypeInstance {
 			case 0x000: // SlideListWithTextContainer
-				c.slideList = &SlideListWithTextContainer{
+				slideList := &SlideListWithTextContainer{
 					Record: record,
 				}
+				err = slideList.parse()
+				if err != nil {
+					return err
+				}
+				c.slideList = slideList
 			case 0x001: // MasterListWithTextContainer
 				c.masterList = &MasterListWithTextContainer{
 					Record: record,
 				}
 			case 0x002: // NotesListWithTextContainer
-				c.notesList = &NotesListWithTextContainer{
+				notesList := &NotesListWithTextContainer{
 					Record: record,
 				}
+				err = notesList.parse(ctx)
+				if err != nil {
+					return err
+				}
+				c.notesList = notesList
 			}
-			if c.masterList != nil && c.slideList != nil && c.notesList != nil {
-				return nil
-			}
+			//if c.masterList != nil && c.slideList != nil && c.notesList != nil {
+			//	return nil
+			//}
 		}
 		offset += record.DataLength + headerSize
 	}
 	return nil
+}
+
+func (c *DocumentContainer) extractText() ([]string, error) {
+	var texts []string
+	if c.slideList == nil {
+		return nil, nil
+	}
+	txts, err := c.slideList.extractText()
+	if err != nil {
+		return nil, err
+	}
+	if len(txts) > 0 {
+		texts = append(texts, txts...)
+	}
+	// todo notes
+	return texts, nil
 }

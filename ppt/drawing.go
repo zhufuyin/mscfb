@@ -13,10 +13,10 @@ func readTextFromDrawing(drawing Record) (string, error) {
 		return "", err
 	}
 	// read shape part (OfficeArtSpContainer) in OfficeArtDgContainer
-	officeArtDgContainer := OfficeArtDGContainer{
+	officeArtDgContainer := &OfficeArtDGContainer{
 		Record: officeArtDgContainerRecord,
 	}
-	officeArtDgContainer.readOfficeArtSpContainers()
+	officeArtDgContainer.parse()
 	if len(officeArtDgContainer.spContainerRecords) == 0 {
 		return "", nil
 	}
@@ -24,16 +24,13 @@ func readTextFromDrawing(drawing Record) (string, error) {
 	// read clientTextbox part ([MS-PPT 2.9.76] OfficeArtClientTextbox) in OfficeArtSpContainer
 	var texts []string
 	for _, sp := range officeArtDgContainer.spContainerRecords {
-		textbox, err := sp.readClientTextbox()
+		err := sp.parse()
 		if err != nil {
 			continue
 		}
-		if textbox == nil {
-			continue
-		}
-		textbox.readTextAtoms()
-		if len(textbox.texts) > 0 {
-			texts = append(texts, textbox.texts...)
+		txts := sp.extractText()
+		if len(txts) > 0 {
+			texts = append(texts, txts...)
 		}
 	}
 	return strings.Join(texts, "\n"), nil

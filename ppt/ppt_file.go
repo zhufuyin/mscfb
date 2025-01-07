@@ -1,31 +1,46 @@
 package ppt
 
-import "github.com/zhufuyin/mscfb/cfb"
+import (
+	"context"
+	"fmt"
+	"github.com/zhufuyin/mscfb/cfb"
+	"io"
+	"strings"
+)
 
 type PptFile struct {
-	currentUserAtom         CurrentUserAtom
-	powerPointStream        *cfb.File
-	persistDirectoryOffsets []uint32
+	currentUserAtom  *CurrentUserAtom
+	userEditAtoms    []UserEditAtom
+	powerPointStream *PowerPointStream
+	//persistDirectoryOffsets []uint32
+	//persistIdOffset map[uint32]int64
 }
 
-func NewPptFile(file *cfb.Reader) (*PptFile, error) {
+func NewPptFile(file io.Reader) (*PptFile, error) {
+	ra := ToReaderAt(file)
+	cfbFile, err := cfb.New(ra)
+	if err != nil {
+		return nil, err
+	}
 	ppt := &PptFile{}
-	var currentUserStream *cfb.File
-	for _, f := range file.File {
+	var currentUserStream, pptDocumentStream *cfb.File
+	for _, f := range cfbFile.File {
 		switch f.Name {
 		case "Current User":
 			currentUserStream = f
 		case "PowerPoint Document":
-			ppt.powerPointStream = f
+			pptDocumentStream = f
+		default:
+			fmt.Println("Unknown File: ", f.Name)
 		}
 	}
-	err := isValidPPT(currentUserStream, ppt.powerPointStream)
+	err = isValidPPT(currentUserStream, pptDocumentStream)
 	if err != nil {
 		return nil, err
 	}
 	// parse current user stream
 	currentUserStreamRecord, err := readRecord(currentUserStream, 0, recordTypeCurrentUserAtom)
-	currentUserAtom := CurrentUserAtom{
+	currentUserAtom := &CurrentUserAtom{
 		Record: currentUserStreamRecord,
 	}
 	currentUserAtom.parse()
@@ -33,11 +48,12 @@ func NewPptFile(file *cfb.Reader) (*PptFile, error) {
 
 	/*
 		read UserEditAtom and persist directory offset from powerpoint document stream,
-		a chain linked by field [offsetLastEdit]
+		UserEditAtom chain is linked by field [offsetLastEdit]
 	*/
 	offset := int64(currentUserAtom.offsetToCurrentEdit)
+	persistDirectoryOffsets := []uint32{}
 	for {
-		userEditAtomRecord, err := readRecord(ppt.powerPointStream, offset, recordTypeUserEditAtom)
+		userEditAtomRecord, err := readRecord(pptDocumentStream, offset, recordTypeUserEditAtom)
 		if err != nil {
 			return nil, err
 		}
@@ -45,21 +61,59 @@ func NewPptFile(file *cfb.Reader) (*PptFile, error) {
 			Record: userEditAtomRecord,
 		}
 		userEditAtom.parse()
-		ppt.persistDirectoryOffsets = append(ppt.persistDirectoryOffsets, userEditAtom.offsetPersistDirectory)
+		ppt.userEditAtoms = append(ppt.userEditAtoms, userEditAtom)
+		persistDirectoryOffsets = append(persistDirectoryOffsets, userEditAtom.offsetPersistDirectory)
 		offset = int64(userEditAtom.offsetLastEdit)
 		if offset == 0 {
 			break
 		}
 	}
 	// read persistDirectoryEntries
-	for _, offset = range ppt.persistDirectoryOffsets {
-		rgPersistDirEntry, err := readRecord(ppt.powerPointStream, offset, recordTypePersistDirectoryAtom)
-		if err != nil {
-			return nil, err
-		}
-		readPersistDirectoryEntry()
-
-	}
+	//for _, userEditAtom := range ppt.userEditAtoms {
+	//	persistDirOffset := userEditAtom.offsetPersistDirectory
+	//	rgPersistDirEntry, err := readRecord(pptDocumentStream, int64(persistDirOffset), recordTypePersistDirectoryAtom)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//	persistDirectoryAtom := PersistDirectoryAtom{
+	//		Record: rgPersistDirEntry,
+	//	}
+	//	err = persistDirectoryAtom.parse()
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//	// put all persistId and object offset into ppt
+	//	for _, entry := range persistDirectoryAtom.rgPersistDirEntry {
+	//		for persistId, objOffset := range entry.persistIdOffset {
+	//			ppt.persistIdOffset[persistId] = objOffset
+	//		}
+	//	}
+	//}
+	ppt.powerPointStream = newPowerPointStream(pptDocumentStream, persistDirectoryOffsets)
 
 	return ppt, nil
+}
+
+func (ppt *PptFile) extractText(ctx context.Context) (string, error) {
+	pptStream := ppt.powerPointStream
+	err := pptStream.parsePersistDirectoryAtom()
+	if err != nil {
+		return "", err
+	}
+	var texts []string
+	for _, userEditAtom := range ppt.userEditAtoms {
+		err = pptStream.readDocumentContainer(ctx, userEditAtom)
+		if err != nil {
+			return "", err
+		}
+		userEditTexts, err := pptStream.extractText()
+		if err != nil {
+			return "", err
+		}
+		if len(userEditTexts) > 0 {
+			texts = append(texts, userEditTexts...)
+		}
+	}
+
+	return strings.Join(texts, "\n"), nil
 }

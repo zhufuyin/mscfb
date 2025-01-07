@@ -16,6 +16,7 @@ const (
 	recordTypeUnspecified              RecordType = 0
 	recordTypeDocument                 RecordType = 0x03E8
 	recordTypeSlide                    RecordType = 0x03EE
+	recordTypeNotes                    RecordType = 0x03F0
 	recordTypeEnvironment              RecordType = 0x03F2
 	recordTypeSlidePersistAtom         RecordType = 0x03F3
 	recordTypeSlideShowSlideInfoAtom   RecordType = 0x03F9
