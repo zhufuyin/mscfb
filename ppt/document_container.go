@@ -7,9 +7,10 @@ import (
 
 type DocumentContainer struct {
 	Record
-	masterList *MasterListWithTextContainer
-	slideList  *SlideListWithTextContainer
-	notesList  *NotesListWithTextContainer
+	pptDocStream *PowerPointStream
+	masterList   *MasterListWithTextContainer
+	slideList    *SlideListWithTextContainer
+	notesList    *NotesListWithTextContainer
 }
 
 func (c *DocumentContainer) parse(ctx context.Context) error {
@@ -72,13 +73,40 @@ func (c *DocumentContainer) extractText() ([]string, error) {
 	if c.slideList == nil {
 		return nil, nil
 	}
-	txts, err := c.slideList.extractText()
-	if err != nil {
-		return nil, err
+	pptDocStream := c.pptDocStream
+	// range items in SlideListWithTextContainer
+	for _, item := range c.slideList.items {
+		switch atom := item.(type) {
+		case *SlidePersistAtom:
+			txts, err := pptDocStream.extractTextFromSlide(atom)
+			if err != nil {
+				return nil, err
+			}
+			texts = append(texts, txts...)
+		case *TextCharsAtom:
+			txt, err := atom.getText()
+			if err != nil {
+				return nil, err
+			}
+			texts = append(texts, txt)
+		case *TextBytesAtom:
+			txt, err := atom.getText()
+			if err != nil {
+				return nil, err
+			}
+			texts = append(texts, txt)
+		default:
+			fmt.Printf("unknown item type in SlideListWithTextContainer: %t", item)
+		}
 	}
-	if len(txts) > 0 {
-		texts = append(texts, txts...)
-	}
+
+	//txts, err := c.slideList.extractText()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if len(txts) > 0 {
+	//	texts = append(texts, txts...)
+	//}
 
 	return texts, nil
 }

@@ -8,7 +8,7 @@ type UserEditAtom struct {
 	majorVersion           uint8
 	offsetLastEdit         uint32
 	offsetPersistDirectory uint32
-	docPersistIdRef        uint32
+	docPersistIdRef        uint32 // must be 0x00000001
 	persistIdSeed          uint32
 	lastView               uint16
 }
@@ -26,5 +26,10 @@ func (a *UserEditAtom) parse() {
 	a.offsetLastEdit = a.Uint32At(offset)
 	offset += 4
 	a.offsetPersistDirectory = a.Uint32At(offset)
-
+	offset += 4
+	a.docPersistIdRef = a.Uint32At(offset)
+	offset += 4
+	a.persistIdSeed = a.Uint32At(offset)
+	offset += 4
+	a.lastView = a.Uint16At(offset)
 }

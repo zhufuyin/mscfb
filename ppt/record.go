@@ -53,6 +53,7 @@ var errMismatchRecordType = errors.New("mismatch record type")
 type Record struct {
 	header [headerSize]byte
 	RecordData
+	offset       int64
 	RecType      RecordType
 	TypeInstance uint16
 	DataLength   int64
@@ -136,6 +137,7 @@ func readRecordHeaderOnly(f io.ReaderAt, offset int64, wantedType RecordType) (R
 	if err != nil {
 		return Record{}, err
 	}
+	r.offset = offset
 	r.RecType = r.Type()
 	r.TypeInstance = r.Instance()
 	r.DataLength = int64(r.Length())

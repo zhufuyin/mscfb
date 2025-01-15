@@ -3,9 +3,10 @@ package ppt
 // refer MS-PPT 2.4.14.6
 type SlideListWithTextContainer struct {
 	Record
-	slidePersistAtoms []SlidePersistAtom
-	textCharsAtoms    []TextCharsAtom
-	textBytesAtoms    []TextBytesAtom
+	items             []any
+	slidePersistAtoms []*SlidePersistAtom
+	textCharsAtoms    []*TextCharsAtom
+	textBytesAtoms    []*TextBytesAtom
 }
 
 func (c *SlideListWithTextContainer) parse() error {
@@ -21,28 +22,31 @@ func (c *SlideListWithTextContainer) parse() error {
 			if err != nil {
 				return err
 			}
-			slidePersistAtom := SlidePersistAtom{
+			slidePersistAtom := &SlidePersistAtom{
 				Record: record,
 			}
 			err = slidePersistAtom.parse()
 			if err != nil {
 				return err
 			}
-			c.slidePersistAtoms = append(c.slidePersistAtoms, slidePersistAtom)
+			c.items = append(c.items, slidePersistAtom)
+			//c.slidePersistAtoms = append(c.slidePersistAtoms, slidePersistAtom)
 		case recordTypeTextCharsAtom:
 			err := readRecordData(c, &record, offset)
 			if err != nil {
 				return err
 			}
 			textCharsAtom := TextCharsAtom(record)
-			c.textCharsAtoms = append(c.textCharsAtoms, textCharsAtom)
+			c.items = append(c.items, &textCharsAtom)
+			//c.textCharsAtoms = append(c.textCharsAtoms, &textCharsAtom)
 		case recordTypeTextBytesAtom:
 			err := readRecordData(c, &record, offset)
 			if err != nil {
 				return err
 			}
 			textBytesAtom := TextBytesAtom(record)
-			c.textBytesAtoms = append(c.textBytesAtoms, textBytesAtom)
+			c.items = append(c.items, &textBytesAtom)
+			//c.textBytesAtoms = append(c.textBytesAtoms, &textBytesAtom)
 		}
 		offset += record.DataLength + headerSize
 	}

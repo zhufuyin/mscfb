@@ -10,8 +10,11 @@ type PowerPointStream struct {
 	pptDocument             *cfb.File
 	persistDirectoryAtoms   []*PersistDirectoryAtom // referred by offsetPersistDirectory in UserEditAtom
 	persistDirectoryOffsets []uint32                // offsetPersistDirectory in UserEditAtom
-	persistIdObjOffsets     map[uint32]int64        // persistId -> persist object's offset in powerpoint document stream
-	documentContainer       *DocumentContainer
+	// persist object's offset in powerpoint document stream
+	// value: persistId
+	offset2PersistId    map[int64]uint32
+	documentContainer   *DocumentContainer
+	persistIdObjOffsets map[uint32]int64 // todo delete
 }
 
 func newPowerPointStream(pptDocument *cfb.File, persistDirectoryOffsets []uint32) *PowerPointStream {
@@ -21,50 +24,65 @@ func newPowerPointStream(pptDocument *cfb.File, persistDirectoryOffsets []uint32
 	}
 }
 
+// get all persistId and offset
 func (s *PowerPointStream) parsePersistDirectoryAtom() error {
+	s.offset2PersistId = make(map[int64]uint32)
 	s.persistIdObjOffsets = make(map[uint32]int64)
 	for _, offsetPersistDirectory := range s.persistDirectoryOffsets {
-		persistDirectoryAtomRecord, err := readRecord(s.pptDocument, int64(offsetPersistDirectory), recordTypePersistDirectoryAtom)
+		offset := int64(offsetPersistDirectory)
+		persistDirectoryAtomRecord, err := readRecord(s.pptDocument, offset, recordTypePersistDirectoryAtom)
 		if err != nil {
 			return err
 		}
-		persistDirectoryAtom := PersistDirectoryAtom{
+		persistDirectoryAtom := &PersistDirectoryAtom{
 			Record: persistDirectoryAtomRecord,
 		}
 		err = persistDirectoryAtom.parse()
 		if err != nil {
 			return err
 		}
-		s.persistDirectoryAtoms = append(s.persistDirectoryAtoms, &persistDirectoryAtom)
+		s.persistDirectoryAtoms = append(s.persistDirectoryAtoms, persistDirectoryAtom)
 		for _, entry := range persistDirectoryAtom.rgPersistDirEntry {
 			for persistId, blockOffset := range entry.persistIdOffset {
-				s.persistIdObjOffsets[persistId] = blockOffset
+				s.offset2PersistId[blockOffset] = persistId
+				if _, ok := s.persistIdObjOffsets[persistId]; !ok {
+					s.persistIdObjOffsets[persistId] = blockOffset
+				}
 			}
 		}
 	}
+
 	return nil
 }
 
 // read DocumentContainer whose offset is referred by docPersistIdRef in UserEditAtom
-func (s *PowerPointStream) readDocumentContainer(ctx context.Context, userEditAtom UserEditAtom) error {
-	documentContainerRecord, err := readRecord(s.pptDocument, int64(userEditAtom.docPersistIdRef), recordTypeDocument)
+func (s *PowerPointStream) readDocumentContainer(ctx context.Context, userEditAtom *UserEditAtom) error {
+	offset, ok := s.persistIdObjOffsets[userEditAtom.docPersistIdRef]
+	if !ok {
+		return fmt.Errorf("persistIdRef not found")
+	}
+	documentContainerRecord, err := readRecord(s.pptDocument, offset, recordTypeDocument)
 	if err != nil {
 		return err
 	}
-	s.documentContainer = &DocumentContainer{
-		Record: documentContainerRecord,
+	documentContainer := &DocumentContainer{
+		Record:       documentContainerRecord,
+		pptDocStream: s,
 	}
-	err = s.documentContainer.parse(ctx)
+	err = documentContainer.parse(ctx)
 	if err != nil {
 		return err
 	}
+	s.documentContainer = documentContainer
+	//fmt.Printf("documentContainer offset: %d\n", documentContainerRecord.offset)
 	return nil
 }
 
 func (s *PowerPointStream) extractText() ([]string, error) {
 	var texts []string
-	documentContainer := s.documentContainer
-	directTexts, err := documentContainer.extractText()
+
+	// extract textCharsAtom and textBytesAtom in SlideListWithText
+	directTexts, err := s.documentContainer.extractText()
 	if err != nil {
 		return nil, err
 	}
@@ -72,32 +90,85 @@ func (s *PowerPointStream) extractText() ([]string, error) {
 		texts = append(texts, directTexts...)
 	}
 	// slide list
-	slideList := documentContainer.slideList
-	for _, slidePersistAtom := range slideList.slidePersistAtoms {
-		persistIdRef := slidePersistAtom.persistIdRef
-		offset, ok := s.persistIdObjOffsets[persistIdRef]
-		if !ok {
-			fmt.Printf("persistIdRef:%d not found\n", persistIdRef)
-			return nil, fmt.Errorf("persistIdRef not found in persistIdObjOffsets")
-		}
-		slideRecord, err := readRecord(s.pptDocument, offset, recordTypeSlide)
-		if err != nil {
-			return nil, err
-		}
-		slide := &SlideContainer{
-			Record: slideRecord,
-		}
-		err = slide.parse()
-		if err != nil {
-			return nil, err
-		}
-		slideTexts := slide.extractText()
-		if len(slideTexts) > 0 {
-			texts = append(texts, slideTexts...)
-		}
-	}
+	//slideTexts, err := s.extractTextFromSlides()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if len(slideTexts) > 0 {
+	//	texts = append(texts, slideTexts...)
+	//}
+
 	// notes list
-	notesList := s.documentContainer.notesList
+	//notesTexts, err := s.extractTextFromNotes()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if len(notesTexts) > 0 {
+	//	texts = append(texts, notesTexts...)
+	//}
+
+	// master list
+	//masterListTexts, err := s.extractTextFromMasterList()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if len(masterListTexts) > 0 {
+	//	texts = append(texts, masterListTexts...)
+	//}
+
+	return texts, nil
+}
+
+func (s *PowerPointStream) extractTextFromSlides() ([]string, error) {
+	var texts []string
+	slideList := s.documentContainer.slideList
+	if slideList == nil {
+		return nil, nil
+	}
+
+	for _, slidePersistAtom := range slideList.slidePersistAtoms {
+		slideTexts, err := s.extractTextFromSlide(slidePersistAtom)
+		if err != nil {
+			return nil, err
+		}
+		texts = append(texts, slideTexts...)
+	}
+	return texts, nil
+}
+
+func (s *PowerPointStream) extractTextFromSlide(slidePersistAtom *SlidePersistAtom) ([]string, error) {
+	var texts []string
+	persistIdRef := slidePersistAtom.persistIdRef
+	offset, ok := s.persistIdObjOffsets[persistIdRef]
+	if !ok {
+		fmt.Printf("persistIdRef:%d not found\n", persistIdRef)
+		return nil, fmt.Errorf("persistIdRef not found in persistIdObjOffsets")
+	}
+	slideRecord, err := readRecord(s.pptDocument, offset, recordTypeSlide)
+	if err != nil {
+		return nil, err
+	}
+	slide := &SlideContainer{
+		Record: slideRecord,
+	}
+	err = slide.parse()
+	if err != nil {
+		return nil, err
+	}
+	slideTexts := slide.extractText()
+	if len(slideTexts) > 0 {
+		texts = append(texts, slideTexts...)
+	}
+	return texts, nil
+}
+
+func (s *PowerPointStream) extractTextFromNotes(documentContainer *DocumentContainer) ([]string, error) {
+	var texts []string
+	notesList := documentContainer.notesList
+	if notesList == nil {
+		return nil, nil
+	}
+
 	for _, notesPersistAtom := range notesList.rgNotesPersistAtom {
 		persistIdRef := notesPersistAtom.persistIdRef
 		offset, ok := s.persistIdObjOffsets[persistIdRef]
@@ -121,8 +192,16 @@ func (s *PowerPointStream) extractText() ([]string, error) {
 			texts = append(texts, notesTexts...)
 		}
 	}
-	// master list
-	masterList := s.documentContainer.masterList
+	return texts, nil
+}
+
+func (s *PowerPointStream) extractTextFromMasterList(documentContainer *DocumentContainer) ([]string, error) {
+	var texts []string
+	masterList := documentContainer.masterList
+	if masterList == nil {
+		return nil, nil
+	}
+
 	for _, masterPersistAtom := range masterList.rgMasterPersistAtom {
 		persistIdRef := masterPersistAtom.persistIdRef
 		offset, ok := s.persistIdObjOffsets[persistIdRef]
@@ -163,5 +242,6 @@ func (s *PowerPointStream) extractText() ([]string, error) {
 			fmt.Printf("Unknown master record type %d\n", masterRecord.RecType)
 		}
 	}
+
 	return texts, nil
 }
