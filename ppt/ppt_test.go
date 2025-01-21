@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	simplePresPath = "../test/demo1.ppt"
+	simplePresPath = "../test/test.ppt"
 )
 
 func TestExtractTextFromPpt(t *testing.T) {
@@ -23,7 +23,7 @@ func TestExtractTextFromPpt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text, err := ppt.extractText(context.Background())
+	text, err := ppt.ExtractText(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

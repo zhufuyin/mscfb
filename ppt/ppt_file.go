@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+const (
+	CurrentUserStreamName        = "Current User"
+	PowerPointDocumentStreamName = "PowerPoint Document"
+)
+
 type PptFile struct {
 	currentUserAtom    *CurrentUserAtom
 	userEditAtoms      []*UserEditAtom
@@ -25,13 +30,10 @@ func NewPptFile(file io.Reader) (*PptFile, error) {
 	ppt := &PptFile{}
 	var currentUserStream, pptDocumentStream *cfb.File
 	for _, f := range cfbFile.File {
-		switch f.Name {
-		case "Current User":
+		if f.Name == CurrentUserStreamName && len(f.Path) == 0 {
 			currentUserStream = f
-		case "PowerPoint Document":
+		} else if f.Name == PowerPointDocumentStreamName && len(f.Path) == 0 {
 			pptDocumentStream = f
-		default:
-			//fmt.Println("Unknown File: ", f.Name)
 		}
 	}
 	err = isValidPPT(currentUserStream, pptDocumentStream)
