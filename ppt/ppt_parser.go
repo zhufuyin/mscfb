@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/zhufuyin/mscfb/cfb"
+	"github.com/zhufuyin/mscfb/global"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/transform"
 	"io"
@@ -200,9 +201,9 @@ func readSlides(documentContainer Record, pptDocument io.ReaderAt, persistDirEnt
 		case recordTypeSlidePersistAtom:
 			err = readTextFromSlidePersistAtom(block, pptDocument, persistDirEntries, &out)
 		case recordTypeTextCharsAtom:
-			err = readTextFromTextCharsAtom(block, &out, utf16Decoder)
+			err = readTextFromTextCharsAtom(block, &out, global.Utf16Decoder)
 		case recordTypeTextBytesAtom:
-			err = readTextFromTextBytesAtom(block, &out, utf16Decoder)
+			err = readTextFromTextBytesAtom(block, &out, global.Utf16Decoder)
 		}
 		if err != nil {
 			return "", err
