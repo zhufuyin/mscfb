@@ -36,7 +36,7 @@ const (
 
 // ExtractText parses PPT file represented by Reader r and extracts text from it.
 func ExtractText(r io.Reader) (string, error) {
-	ra := ToReaderAt(r)
+	ra := global.NewReaderAt(r)
 
 	d, err := cfb.New(ra)
 	if err != nil {

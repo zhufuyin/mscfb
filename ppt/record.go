@@ -3,6 +3,7 @@ package ppt
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/zhufuyin/mscfb/global"
 	"io"
 )
 
@@ -94,7 +95,7 @@ type RecordData []byte
 
 // ReadAt copies bytes from record data at given offset into buffer p
 func (rd RecordData) ReadAt(p []byte, off int64) (n int, err error) {
-	return BytesReadAt(rd, p, off)
+	return global.ReadBytes(rd, p, off)
 }
 
 func (rd RecordData) Uint64At(offset int) uint64 {

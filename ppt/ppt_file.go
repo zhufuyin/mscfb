@@ -2,9 +2,16 @@ package ppt
 
 import (
 	"context"
+	"errors"
 	"github.com/zhufuyin/mscfb/cfb"
+	"github.com/zhufuyin/mscfb/global"
 	"io"
 	"strings"
+)
+
+const (
+	CurrentUserStreamName        = "Current User"
+	PowerPointDocumentStreamName = "PowerPoint Document"
 )
 
 type PptFile struct {
@@ -17,22 +24,22 @@ type PptFile struct {
 }
 
 func NewPptFile(file io.Reader) (*PptFile, error) {
-	ra := ToReaderAt(file)
+	ra := global.NewReaderAt(file)
 	cfbFile, err := cfb.New(ra)
 	if err != nil {
 		return nil, err
 	}
 	ppt := &PptFile{}
 	var currentUserStream, pptDocumentStream *cfb.File
-	for _, f := range cfbFile.File {
-		switch f.Name {
-		case "Current User":
-			currentUserStream = f
-		case "PowerPoint Document":
-			pptDocumentStream = f
-		default:
-			//fmt.Println("Unknown File: ", f.Name)
+	for _, stream := range cfbFile.File {
+		if stream.Name == CurrentUserStreamName {
+			currentUserStream = stream
+		} else if stream.Name == PowerPointDocumentStreamName {
+			pptDocumentStream = stream
 		}
+	}
+	if currentUserStream == nil || pptDocumentStream == nil {
+		return nil, errors.New("invalid ppt file")
 	}
 	err = isValidPPT(currentUserStream, pptDocumentStream)
 	if err != nil {

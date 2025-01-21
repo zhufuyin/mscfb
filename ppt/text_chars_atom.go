@@ -1,10 +1,12 @@
 package ppt
 
+import "github.com/zhufuyin/mscfb/global"
+
 type TextCharsAtom Record
 
 func (a *TextCharsAtom) getText() (string, error) {
-	utf16Decoder.Reset()
-	decBytes, err := utf16Decoder.Bytes(a.RecordData)
+	global.Utf16Decoder.Reset()
+	decBytes, err := global.Utf16Decoder.Bytes(a.RecordData)
 	if err != nil {
 		return "", err
 	}

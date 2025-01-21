@@ -34,6 +34,7 @@ const (
 )
 
 type directoryEntryFields struct {
+	rawData           [128]byte      // raw data
 	rawName           [32]uint16     //64 bytes, unicode string encoded in UTF-16. If root, "Root Entry\0" w
 	nameLength        uint16         //2 bytes
 	objectType        uint8          //1 byte Must be one of the types specified above
@@ -51,6 +52,7 @@ type directoryEntryFields struct {
 
 func makeDirEntry(b []byte) *directoryEntryFields {
 	d := &directoryEntryFields{}
+	copy(d.rawData[:], b)
 	for i := range d.rawName {
 		d.rawName[i] = binary.LittleEndian.Uint16(b[i*2 : i*2+2])
 	}
@@ -85,7 +87,9 @@ func (r *Reader) setDirEntries() error {
 		}
 		for i := 0; i < num; i++ {
 			f := &File{r: r}
-			f.directoryEntryFields = makeDirEntry(buf[i*128:])
+			entryBuf := make([]byte, 128)
+			copy(entryBuf, buf[i*128:])
+			f.directoryEntryFields = makeDirEntry(entryBuf)
 			fixFile(r.header.majorVersion, f)
 			f.curSector = f.startingSectorLoc
 			de = append(de, f)
